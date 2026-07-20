@@ -1,0 +1,7 @@
+.venv/
+.tmp/
+__pycache__/
+*.py[cod]
+db.sqlite3
+.env
+issue_tracker_modules.md
