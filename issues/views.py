@@ -1,7 +1,7 @@
 from rest_framework import generics, permissions, viewsets
 
-from .models import Membership, Organization, Project
-from .serializers import OrganizationSerializer, ProjectSerializer, RegisterSerializer
+from .models import Membership, Organization, Project, Task
+from .serializers import OrganizationSerializer, ProjectSerializer, RegisterSerializer, TaskSerializer
 
 
 class RegisterView(generics.CreateAPIView):
@@ -33,3 +33,15 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return Project.objects.filter(
             organization__memberships__user=self.request.user,
         ).distinct()
+
+
+class TaskViewSet(viewsets.ModelViewSet):
+    serializer_class = TaskSerializer
+
+    def get_queryset(self):
+        return Task.objects.filter(
+            project__organization__memberships__user=self.request.user,
+        ).distinct()
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
