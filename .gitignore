@@ -5,4 +5,5 @@ __pycache__/
 db.sqlite3
 .env
 issue_tracker_modules.md
+TeamIssueTrackerAPI_Deep_Dive.md
 .agents/
