@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 
-from .models import Organization
+from .models import Organization, Project
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -23,3 +23,16 @@ class OrganizationSerializer(serializers.ModelSerializer):
         model = Organization
         fields = ['id', 'name', 'owner']
         read_only_fields = ['id', 'owner']
+
+
+class ProjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Project
+        fields = ['id', 'organization', 'name', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+    def validate_organization(self, organization):
+        request = self.context.get('request')
+        if request and not organization.memberships.filter(user=request.user).exists():
+            raise serializers.ValidationError('You are not a member of this organization.')
+        return organization

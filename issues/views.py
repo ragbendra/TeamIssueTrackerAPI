@@ -1,7 +1,7 @@
 from rest_framework import generics, permissions, viewsets
 
-from .models import Membership, Organization
-from .serializers import OrganizationSerializer, RegisterSerializer
+from .models import Membership, Organization, Project
+from .serializers import OrganizationSerializer, ProjectSerializer, RegisterSerializer
 
 
 class RegisterView(generics.CreateAPIView):
@@ -24,3 +24,12 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             user=self.request.user,
             role=Membership.Role.OWNER,
         )
+
+
+class ProjectViewSet(viewsets.ModelViewSet):
+    serializer_class = ProjectSerializer
+
+    def get_queryset(self):
+        return Project.objects.filter(
+            organization__memberships__user=self.request.user,
+        ).distinct()
