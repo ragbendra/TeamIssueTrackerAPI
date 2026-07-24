@@ -1,6 +1,7 @@
 from rest_framework import generics, permissions, viewsets
 
 from .models import Comment, Membership, Organization, Project, Task
+from .permissions import IsAssigneeOrCreatorOrAdmin, IsOrgAdminOrOwner
 from .serializers import (
     CommentSerializer,
     OrganizationSerializer,
@@ -34,6 +35,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
 class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
+    permission_classes = [IsOrgAdminOrOwner]
 
     def get_queryset(self):
         return Project.objects.filter(
@@ -43,6 +45,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
 class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
+    permission_classes = [IsAssigneeOrCreatorOrAdmin]
 
     def get_queryset(self):
         return Task.objects.filter(
