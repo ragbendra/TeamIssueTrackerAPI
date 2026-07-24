@@ -44,6 +44,21 @@ class UserSummarySerializer(serializers.ModelSerializer):
         fields = ['id', 'username']
 
 
+class CommentSerializer(serializers.ModelSerializer):
+    author = UserSummarySerializer(read_only=True)
+
+    class Meta:
+        model = Comment
+        fields = ['id', 'task', 'author', 'body', 'created_at']
+        read_only_fields = ['id', 'author', 'created_at']
+
+    def validate_task(self, task):
+        request = self.context.get('request')
+        if request and not task.project.organization.memberships.filter(user=request.user).exists():
+            raise serializers.ValidationError('You are not a member of this task organization.')
+        return task
+
+
 class TaskSerializer(serializers.ModelSerializer):
     assignee = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
@@ -52,6 +67,7 @@ class TaskSerializer(serializers.ModelSerializer):
     )
     assignee_detail = UserSummarySerializer(source='assignee', read_only=True)
     created_by = UserSummarySerializer(read_only=True)
+    comments = CommentSerializer(many=True, read_only=True)
     initial_comment = serializers.CharField(
         write_only=True,
         required=False,
@@ -70,6 +86,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'assignee',
             'assignee_detail',
             'created_by',
+            'comments',
             'initial_comment',
         ]
         read_only_fields = ['id', 'created_by']

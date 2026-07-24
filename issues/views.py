@@ -1,7 +1,13 @@
 from rest_framework import generics, permissions, viewsets
 
-from .models import Membership, Organization, Project, Task
-from .serializers import OrganizationSerializer, ProjectSerializer, RegisterSerializer, TaskSerializer
+from .models import Comment, Membership, Organization, Project, Task
+from .serializers import (
+    CommentSerializer,
+    OrganizationSerializer,
+    ProjectSerializer,
+    RegisterSerializer,
+    TaskSerializer,
+)
 
 
 class RegisterView(generics.CreateAPIView):
@@ -45,3 +51,16 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+
+class CommentViewSet(viewsets.ModelViewSet):
+    serializer_class = CommentSerializer
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        return Comment.objects.filter(
+            task__project__organization__memberships__user=self.request.user,
+        ).distinct()
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
