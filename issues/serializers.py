@@ -86,10 +86,11 @@ class TaskSerializer(serializers.ModelSerializer):
             'assignee',
             'assignee_detail',
             'created_by',
+            'created_at',
             'comments',
             'initial_comment',
         ]
-        read_only_fields = ['id', 'created_by']
+        read_only_fields = ['id', 'created_by', 'created_at']
 
     def validate_project(self, project):
         request = self.context.get('request')

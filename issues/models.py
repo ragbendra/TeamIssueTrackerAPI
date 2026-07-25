@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class Organization(models.Model):
@@ -92,6 +93,7 @@ class Task(models.Model):
         on_delete=models.CASCADE,
         related_name='created_tasks',
     )
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
 
     def __str__(self):
         return self.title

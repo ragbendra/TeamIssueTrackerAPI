@@ -1,5 +1,7 @@
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
 from .models import Comment, Membership, Organization, Project, Task
@@ -58,6 +60,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
 class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [IsAssigneeOrCreatorOrAdmin]
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ['status', 'priority', 'assignee']
+    ordering_fields = ['created_at', 'priority']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         return Task.objects.filter(
