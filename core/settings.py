@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from dotenv import load_dotenv
 
@@ -25,10 +26,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-f=9cs=u&=88f9g8$m^pkmnz77m0q9=2x16n-y*dckg5a$q5vq&'
+SECRET_KEY = os.environ.get(
+    'SECRET_KEY',
+    'django-insecure-development-key-change-me',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True').lower() in {'1', 'true', 'yes'}
 
 ALLOWED_HOSTS = os.environ.get(
     'DJANGO_ALLOWED_HOSTS',
@@ -83,14 +87,21 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+database_url = urlparse(
+    os.environ.get(
+        'DATABASE_URL',
+        'postgresql://postgres:postgres@localhost:5432/team_issue_tracker',
+    ),
+)
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('MYSQL_DB', 'team_issue_tracker'),
-        'USER': os.environ.get('MYSQL_USER', 'root'),
-        'PASSWORD': os.environ.get('MYSQL_PASSWORD', ''),
-        'HOST': os.environ.get('MYSQL_HOST', 'localhost'),
-        'PORT': os.environ.get('MYSQL_PORT', '3306'),
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': database_url.path.lstrip('/'),
+        'USER': unquote(database_url.username or ''),
+        'PASSWORD': unquote(database_url.password or ''),
+        'HOST': database_url.hostname or 'localhost',
+        'PORT': str(database_url.port or 5432),
     }
 }
 
