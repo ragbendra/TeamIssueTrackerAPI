@@ -1,4 +1,6 @@
-from rest_framework import generics, permissions, viewsets
+from rest_framework import generics, permissions, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from .models import Comment, Membership, Organization, Project, Task
 from .permissions import IsAssigneeOrCreatorOrAdmin, IsOrgAdminOrOwner
@@ -42,6 +44,16 @@ class ProjectViewSet(viewsets.ModelViewSet):
             organization__memberships__user=self.request.user,
         ).distinct()
 
+    @action(detail=True, methods=['get'])
+    def tasks(self, request, pk=None):
+        project = self.get_object()
+        serializer = TaskSerializer(
+            project.tasks.all(),
+            many=True,
+            context=self.get_serializer_context(),
+        )
+        return Response(serializer.data)
+
 
 class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
@@ -54,6 +66,13 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def close(self, request, pk=None):
+        task = self.get_object()
+        task.status = Task.Status.DONE
+        task.save(update_fields=['status'])
+        return Response(self.get_serializer(task).data, status=status.HTTP_200_OK)
 
 
 class CommentViewSet(viewsets.ModelViewSet):
