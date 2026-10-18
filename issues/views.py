@@ -1,11 +1,17 @@
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import generics, permissions, status, viewsets
+from rest_framework import exceptions, generics, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 
 from .models import Comment, Membership, Organization, Project, Task
-from .permissions import IsAssigneeOrCreatorOrAdmin, IsOrgAdminOrOwner
+from .permissions import (
+    IsAssigneeOrCreatorOrAdmin,
+    IsCommentAuthorOrOrgAdmin,
+    IsOrganizationMemberOrAdmin,
+    IsOrgAdminOrOwner,
+    get_membership,
+)
 from .serializers import (
     CommentSerializer,
     OrganizationSerializer,
@@ -22,6 +28,7 @@ class RegisterView(generics.CreateAPIView):
 
 class OrganizationViewSet(viewsets.ModelViewSet):
     serializer_class = OrganizationSerializer
+    permission_classes = [IsOrganizationMemberOrAdmin]
 
     def get_queryset(self):
         return Organization.objects.filter(
@@ -45,6 +52,18 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return Project.objects.filter(
             organization__memberships__user=self.request.user,
         ).distinct()
+
+    def perform_create(self, serializer):
+        organization = serializer.validated_data['organization']
+        membership = get_membership(self.request.user, organization)
+        if membership is None or membership.role not in {
+            Membership.Role.ADMIN,
+            Membership.Role.OWNER,
+        }:
+            raise exceptions.PermissionDenied(
+                'Only organization owners and admins can create projects.'
+            )
+        serializer.save()
 
     @action(detail=True, methods=['get'])
     def tasks(self, request, pk=None):
@@ -83,6 +102,7 @@ class TaskViewSet(viewsets.ModelViewSet):
 
 class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
+    permission_classes = [IsCommentAuthorOrOrgAdmin]
     http_method_names = ['get', 'post', 'delete', 'head', 'options']
 
     def get_queryset(self):

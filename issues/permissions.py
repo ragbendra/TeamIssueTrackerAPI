@@ -34,6 +34,26 @@ class IsOrgMember(permissions.BasePermission):
         return get_membership(request.user, get_organization(obj)) is not None
 
 
+class IsOrganizationMemberOrAdmin(permissions.BasePermission):
+    """Members can read organizations; admins and owners can update them."""
+
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated)
+
+    def has_object_permission(self, request, view, obj):
+        membership = get_membership(request.user, get_organization(obj))
+        if membership is None:
+            return False
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        if request.method == 'DELETE':
+            return membership.role == Membership.Role.OWNER
+        return membership.role in {
+            Membership.Role.ADMIN,
+            Membership.Role.OWNER,
+        }
+
+
 class IsOrgAdminOrOwner(IsOrgMember):
     """Members can read projects; only organization admins or owners can change them."""
 
@@ -47,6 +67,26 @@ class IsOrgAdminOrOwner(IsOrgMember):
             Membership.Role.ADMIN,
             Membership.Role.OWNER,
         }
+
+
+class IsCommentAuthorOrOrgAdmin(IsOrgMember):
+    """Members can read/create comments; authors and org admins can delete."""
+
+    def has_object_permission(self, request, view, obj):
+        membership = get_membership(request.user, get_organization(obj))
+        if membership is None:
+            return False
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        if request.method == 'DELETE':
+            return (
+                obj.author_id == request.user.id
+                or membership.role in {
+                    Membership.Role.ADMIN,
+                    Membership.Role.OWNER,
+                }
+            )
+        return False
 
 
 class IsAssigneeOrCreatorOrAdmin(IsOrgMember):

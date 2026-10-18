@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 
-from .models import Comment, Organization, Project, Task
+from .models import Comment, Membership, Organization, Project, Task
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -32,9 +32,10 @@ class ProjectSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
     def validate_organization(self, organization):
-        request = self.context.get('request')
-        if request and not organization.memberships.filter(user=request.user).exists():
-            raise serializers.ValidationError('You are not a member of this organization.')
+        if self.instance and organization != self.instance.organization:
+            raise serializers.ValidationError(
+                'A project organization cannot be changed.'
+            )
         return organization
 
 
@@ -97,6 +98,20 @@ class TaskSerializer(serializers.ModelSerializer):
         if request and not project.organization.memberships.filter(user=request.user).exists():
             raise serializers.ValidationError('You are not a member of this project organization.')
         return project
+
+    def validate(self, attrs):
+        project = attrs.get('project')
+        if project is None and self.instance is not None:
+            project = self.instance.project
+        assignee = attrs.get('assignee')
+        if assignee is not None and not Membership.objects.filter(
+            organization=project.organization,
+            user=assignee,
+        ).exists():
+            raise serializers.ValidationError({
+                'assignee': 'The assignee must be a member of the task organization.'
+            })
+        return attrs
 
     def create(self, validated_data):
         initial_comment = validated_data.pop('initial_comment', '').strip()

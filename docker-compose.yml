@@ -5,10 +5,12 @@ services:
       POSTGRES_DB: team_issue_tracker
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d team_issue_tracker"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d team_issue_tracker" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -17,6 +19,7 @@ services:
     build: .
     environment:
       SECRET_KEY: ${SECRET_KEY:-django-insecure-development-key-change-me}
+      # Development-only configuration.
       DEBUG: ${DEBUG:-True}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/team_issue_tracker}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
