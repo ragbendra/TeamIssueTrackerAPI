@@ -2,57 +2,57 @@
 
 [![CI](https://github.com/ragbendra/TeamIssueTrackerAPI/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ragbendra/TeamIssueTrackerAPI/actions/workflows/ci.yml)
 
-Team Issue Tracker API is a Django REST Framework application for managing organizations, projects, tasks, and comments. Data access is organization-scoped: users can see and modify resources only when their membership and role allow it.
+A Django REST Framework API for tracking work in teams: organizations, projects, tasks and comments. Everything is scoped to an organization. A user only sees and changes things that their membership and role allow.
 
 ## At a glance
 
 - **Framework:** Django 6.0.7 and Django REST Framework 3.17.1
 - **Database:** PostgreSQL
-- **Authentication:** JSON Web Tokens with `djangorestframework-simplejwt`
+- **Login:** JSON Web Tokens with `djangorestframework-simplejwt`
 - **Filtering:** `django-filter`
-- **Local orchestration:** Docker Compose with PostgreSQL 16 and Django's development server
+- **Local setup:** Docker Compose with PostgreSQL 16 and Django's development server
 - **API base path:** `/api/`
 
-The repository contains the `core` Django project and the `issues` application. The Docker image uses Python 3.12.
+The repository has the `core` Django project and the `issues` app. The Docker image uses Python 3.12.
 
 ## Data model
 
-| Model | Key fields and relationships |
+| Model | Fields and relationships |
 | --- | --- |
-| `Organization` | `name`; has an `owner` user. |
-| `Membership` | Connects a `user` to an `organization` with role `OWNER`, `ADMIN`, or `MEMBER`; `(organization, user)` is unique. |
-| `Project` | Belongs to an `organization`; has `name` and `created_at`. |
-| `Task` | Belongs to a `project`; has `title`, `description`, `status`, `priority`, optional `assignee`, `created_by`, and `created_at`. |
-| `Comment` | Belongs to a `task`; has `author`, `body`, and `created_at`. |
+| `Organization` | `name`, and an `owner` user. |
+| `Membership` | Links a `user` to an `organization` with the role `OWNER`, `ADMIN` or `MEMBER`. `(organization, user)` is unique. |
+| `Project` | Belongs to an `organization`. Has `name` and `created_at`. |
+| `Task` | Belongs to a `project`. Has `title`, `description`, `status`, `priority`, an optional `assignee`, `created_by` and `created_at`. |
+| `Comment` | Belongs to a `task`. Has `author`, `body` and `created_at`. |
 
-Task statuses are `TODO`, `IN_PROGRESS`, and `DONE`. Task priorities are `LOW`, `MED`, and `HIGH`. An assignee must be a member of the task's organization, or `null`.
+Task status is `TODO`, `IN_PROGRESS` or `DONE`. Priority is `LOW`, `MED` or `HIGH`. An assignee has to be a member of the task's organization, or `null`.
 
-Deleting an organization cascades through its memberships, projects, tasks, and comments.
+Deleting an organization also deletes its memberships, projects, tasks and comments.
 
 ## Roles and permissions
 
-Registration is open. A newly registered user has no organization until they create one. Creating an organization automatically creates an `OWNER` membership for its creator.
+Anyone can register. A new user belongs to no organization until they create one, and creating an organization makes them its `OWNER`.
 
-The API does not provide a membership-management endpoint. A superuser assigns `ADMIN` and `MEMBER` roles through Django admin at `/admin/`; the API-created owner membership is the initial role available through the API workflow.
+There's no API endpoint for managing members. To give someone the `ADMIN` or `MEMBER` role, a superuser has to do it in the Django admin at `/admin/`. Through the API, the only role you can get is the `OWNER` membership you receive for creating an organization.
 
 | Resource | Read | Create | Update | Delete |
 | --- | --- | --- | --- | --- |
-| Organization | Organization members | Any authenticated user; creator becomes `OWNER` | Organization `OWNER` or `ADMIN` | `OWNER` only |
+| Organization | Organization members | Any logged-in user; the creator becomes `OWNER` | Organization `OWNER` or `ADMIN` | `OWNER` only |
 | Project | Organization members | Organization `OWNER` or `ADMIN` | Organization `OWNER` or `ADMIN` | Organization `OWNER` or `ADMIN` |
-| Task | Organization members | Any member of the project organization | Organization `OWNER`/`ADMIN`, task creator, or assignee | Same as update |
-| Task close action | Not applicable | Not applicable | Same as task update | Not applicable |
-| Comment | Organization members | Any member of the task organization | Not allowed | Comment author or organization `OWNER`/`ADMIN` |
+| Task | Organization members | Any member of the project's organization | Organization `OWNER`/`ADMIN`, the task creator, or the assignee | Same as update |
+| Task close action | n/a | n/a | Same as task update | n/a |
+| Comment | Organization members | Any member of the task's organization | Not allowed | The comment's author, or organization `OWNER`/`ADMIN` |
 
-Additional authorization rules:
+A few more rules:
 
-- A plain member and a non-member receive `403 Forbidden` when creating a project.
-- A project's organization is immutable after creation.
-- Cross-organization detail requests are hidden by the queryset and return `404 Not Found`.
-- Invalid assignees return `400 Bad Request`.
+- A plain member, or someone outside the organization, gets `403 Forbidden` when creating a project.
+- A project can't be moved to another organization after it's created.
+- Objects from another organization are hidden by the queryset, so a detail request for one returns `404 Not Found`.
+- An invalid assignee returns `400 Bad Request`.
 
 ## API reference
 
-The examples use `http://127.0.0.1:8000`. Protected requests require:
+The examples use `http://127.0.0.1:8000`. Protected requests need this header:
 
 ```text
 Authorization: Bearer <access-token>
@@ -60,41 +60,41 @@ Authorization: Bearer <access-token>
 
 ### Authentication routes
 
-| Method | Route | Authentication | Purpose |
+| Method | Route | Auth | What it does |
 | --- | --- | --- | --- |
-| `POST` | `/api/auth/register/` | Open | Register a user with `username` and `password`. |
-| `POST` | `/api/auth/token/` | Open | Obtain an access token and refresh token. |
-| `POST` | `/api/auth/token/refresh/` | Open | Exchange a refresh token for a new access token. |
+| `POST` | `/api/auth/register/` | None | Registers a user with `username` and `password`. |
+| `POST` | `/api/auth/token/` | None | Returns an access token and a refresh token. |
+| `POST` | `/api/auth/token/refresh/` | None | Trades a refresh token for a new access token. |
 
 ### Resource routes
 
-| Method | Route | Authentication | Purpose |
+| Method | Route | Auth | What it does |
 | --- | --- | --- | --- |
-| `GET`, `POST` | `/api/organizations/` | Required | List accessible organizations or create one. List parameters: `page`, `page_size`. |
-| `GET`, `PUT`, `PATCH`, `DELETE` | `/api/organizations/{id}/` | Required | Read, update, or delete one organization. |
-| `GET`, `POST` | `/api/projects/` | Required | List accessible projects or create one. List parameters: `page`, `page_size`. |
-| `GET`, `PUT`, `PATCH`, `DELETE` | `/api/projects/{id}/` | Required | Read, update, or delete one project. |
-| `GET` | `/api/projects/{id}/tasks/` | Required | List all tasks for one accessible project. This response is not paginated. |
-| `GET`, `POST` | `/api/tasks/` | Required | List or create tasks. |
-| `GET`, `PUT`, `PATCH`, `DELETE` | `/api/tasks/{id}/` | Required | Read, update, or delete one task. |
-| `POST` | `/api/tasks/{id}/close/` | Required | Set a task's status to `DONE`. |
-| `GET`, `POST` | `/api/comments/` | Required | List or create comments. List parameters: `page`, `page_size`. |
-| `GET`, `DELETE` | `/api/comments/{id}/` | Required | Read or delete one comment. Comment update methods are not enabled. |
+| `GET`, `POST` | `/api/organizations/` | Required | Lists the organizations you can access, or creates one. List parameters: `page`, `page_size`. |
+| `GET`, `PUT`, `PATCH`, `DELETE` | `/api/organizations/{id}/` | Required | Reads, updates or deletes one organization. |
+| `GET`, `POST` | `/api/projects/` | Required | Lists accessible projects, or creates one. List parameters: `page`, `page_size`. |
+| `GET`, `PUT`, `PATCH`, `DELETE` | `/api/projects/{id}/` | Required | Reads, updates or deletes one project. |
+| `GET` | `/api/projects/{id}/tasks/` | Required | Lists every task in one project you can access. Not paginated. |
+| `GET`, `POST` | `/api/tasks/` | Required | Lists or creates tasks. |
+| `GET`, `PUT`, `PATCH`, `DELETE` | `/api/tasks/{id}/` | Required | Reads, updates or deletes one task. |
+| `POST` | `/api/tasks/{id}/close/` | Required | Sets a task's status to `DONE`. |
+| `GET`, `POST` | `/api/comments/` | Required | Lists or creates comments. List parameters: `page`, `page_size`. |
+| `GET`, `DELETE` | `/api/comments/{id}/` | Required | Reads or deletes one comment. Comments can't be edited. |
 
 ### Task list parameters
 
-`GET /api/tasks/` supports the following query parameters:
+`GET /api/tasks/` accepts these query parameters:
 
-| Parameter | Values or behavior |
+| Parameter | Values |
 | --- | --- |
-| `status` | `TODO`, `IN_PROGRESS`, or `DONE` |
-| `priority` | `LOW`, `MED`, or `HIGH` |
-| `assignee` | Numeric user ID |
-| `ordering` | `created_at`, `-created_at`, `priority`, or `-priority` |
+| `status` | `TODO`, `IN_PROGRESS` or `DONE` |
+| `priority` | `LOW`, `MED` or `HIGH` |
+| `assignee` | A numeric user ID |
+| `ordering` | `created_at`, `-created_at`, `priority` or `-priority` |
 | `page` | Page number |
-| `page_size` | Defaults to `10`; maximum is `100` |
+| `page_size` | Defaults to `10`, maximum `100` |
 
-Paginated responses use the standard envelope:
+Paginated responses look like this:
 
 ```json
 {
@@ -105,11 +105,11 @@ Paginated responses use the standard envelope:
 }
 ```
 
-### Example workflow
+### Example walkthrough
 
-The following request and response shapes were captured from a local server run. Sample IDs and timestamps are illustrative values from that run and will differ in another database. Token values are intentionally omitted from the documentation; use the values returned by your own token request.
+These requests and responses were captured from a local server run. The IDs and timestamps are from that run and will be different in your database. I've left the tokens out, so use the ones your own token request returns. Where a response repeats the same comments, I've shortened them to `...`.
 
-The examples use a POSIX shell. In PowerShell, `curl.exe` can be used, or the same requests can be sent with `Invoke-RestMethod`.
+The examples use a POSIX shell. In PowerShell you can use `curl.exe` or `Invoke-RestMethod`.
 
 #### 1. Register
 
@@ -126,7 +126,7 @@ curl -X POST http://127.0.0.1:8000/api/auth/register/ \
 }
 ```
 
-#### 2. Obtain tokens
+#### 2. Get tokens
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/auth/token/ \
@@ -141,7 +141,7 @@ curl -X POST http://127.0.0.1:8000/api/auth/token/ \
 }
 ```
 
-Set `ACCESS_TOKEN` to the returned access-token value before running the protected examples:
+Put the access token in `ACCESS_TOKEN` before running the rest:
 
 ```bash
 export ACCESS_TOKEN='<access-token>'
@@ -182,9 +182,9 @@ curl -X POST http://127.0.0.1:8000/api/projects/ \
 }
 ```
 
-#### 5. Create a task with an initial comment
+#### 5. Create a task with a first comment
 
-`initial_comment` is write-only input that creates a comment together with the task.
+`initial_comment` is write-only. It creates a comment at the same time as the task.
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/tasks/ \
@@ -223,7 +223,7 @@ curl -X POST http://127.0.0.1:8000/api/tasks/ \
 }
 ```
 
-#### 6. List filtered and paginated tasks
+#### 6. List tasks with filters and pagination
 
 ```bash
 curl "http://127.0.0.1:8000/api/tasks/?status=TODO&priority=HIGH&page_size=10" \
@@ -250,18 +250,7 @@ curl "http://127.0.0.1:8000/api/tasks/?status=TODO&priority=HIGH&page_size=10" \
         "username": "readme-user-3"
       },
       "created_at": "2026-10-18T06:01:44.088762Z",
-      "comments": [
-        {
-          "id": 1,
-          "task": 1,
-          "author": {
-            "id": 1,
-            "username": "readme-user-3"
-          },
-          "body": "Created from the curl example.",
-          "created_at": "2026-10-18T06:01:44.113921Z"
-        }
-      ]
+      "comments": [ ... ]
     }
   ]
 }
@@ -311,28 +300,7 @@ curl -X POST http://127.0.0.1:8000/api/tasks/1/close/ \
     "username": "readme-user-3"
   },
   "created_at": "2026-10-18T06:01:44.088762Z",
-  "comments": [
-    {
-      "id": 1,
-      "task": 1,
-      "author": {
-        "id": 1,
-        "username": "readme-user-3"
-      },
-      "body": "Created from the curl example.",
-      "created_at": "2026-10-18T06:01:44.113921Z"
-    },
-    {
-      "id": 2,
-      "task": 1,
-      "author": {
-        "id": 1,
-        "username": "readme-user-3"
-      },
-      "body": "Added after task creation.",
-      "created_at": "2026-10-18T06:01:59.124317Z"
-    }
-  ]
+  "comments": [ ... ]
 }
 ```
 
@@ -344,18 +312,18 @@ Send the access token in the `Authorization` header:
 Authorization: Bearer <access-token>
 ```
 
-Access tokens are obtained from `POST /api/auth/token/`. Refresh tokens are sent to `POST /api/auth/token/refresh/` to obtain a new access token.
+You get an access token from `POST /api/auth/token/`. Send the refresh token to `POST /api/auth/token/refresh/` to get a new access token.
 
-The configured Simple JWT lifetimes were read from `rest_framework_simplejwt.settings.api_settings` in this environment:
+Token lifetimes, read from the Simple JWT settings in my environment:
 
 | Token | Lifetime |
 | --- | --- |
-| Access | `0:05:00` (5 minutes) |
-| Refresh | `1 day, 0:00:00` (1 day) |
+| Access | 5 minutes |
+| Refresh | 1 day |
 
 ## Setup: local development
 
-### Requirements
+### What you need
 
 - Python 3.12
 - PostgreSQL
@@ -378,7 +346,7 @@ On Windows PowerShell, activate the environment with:
 .\.venv\Scripts\Activate.ps1
 ```
 
-Copy the environment template in PowerShell with:
+and copy the environment template with:
 
 ```powershell
 Copy-Item .env.example .env
@@ -390,7 +358,7 @@ For a local PostgreSQL server, set `DATABASE_URL` in `.env` to a local host, for
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/team_issue_tracker
 ```
 
-Apply migrations, create an admin user, and start the development server:
+Run the migrations, create an admin user and start the development server:
 
 ```bash
 python manage.py migrate
@@ -398,25 +366,25 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-The API is then available at `http://127.0.0.1:8000/api/` and the admin site at `http://127.0.0.1:8000/admin/`.
+The API is then at `http://127.0.0.1:8000/api/` and the admin site at `http://127.0.0.1:8000/admin/`.
 
 ## Setup: Docker Compose
 
-Docker Compose provides PostgreSQL 16 and the Django web container:
+Docker Compose gives you PostgreSQL 16 and the Django web container:
 
 ```bash
 docker compose up --build
 ```
 
-The web container waits for PostgreSQL to become healthy, runs `python manage.py migrate`, and starts Django's development server on port `8000`.
+The web container waits for PostgreSQL to be healthy, runs `python manage.py migrate`, and starts Django's development server on port `8000`.
 
-When using Docker Compose, the database hostname must be the Compose service name `db`:
+With Docker Compose the database host has to be the service name `db`:
 
 ```env
 DATABASE_URL=postgresql://postgres:postgres@db:5432/team_issue_tracker
 ```
 
-Do not use `localhost` for the web container's database URL. Inside the web container, `localhost` refers to the web container itself.
+Don't use `localhost` in the web container's database URL. Inside that container, `localhost` is the web container itself.
 
 Useful commands:
 
@@ -428,24 +396,24 @@ docker compose exec web python manage.py test
 docker compose down
 ```
 
-This Compose configuration is for development. It runs Django's development server and does not configure a production WSGI/ASGI server, HTTPS, rate limiting, or production secret management.
+This Compose setup is for development. It runs Django's development server, and has no production WSGI/ASGI server, HTTPS, rate limiting or production secret handling.
 
 ## Environment variables
 
-| Variable | Behavior and default |
+| Variable | What it does |
 | --- | --- |
-| `SECRET_KEY` | Required when `DEBUG=False`; settings raise `ImproperlyConfigured` if it is missing. With `DEBUG=True`, the development fallback is `django-insecure-development-key-change-me`. |
-| `DEBUG` | Defaults to `False`. Values `1`, `true`, and `yes` enable debug mode. `.env.example` and Docker Compose use `True` for development. |
-| `DATABASE_URL` | Django fallback: `postgresql://postgres:postgres@localhost:5432/team_issue_tracker`. Docker Compose fallback: `postgresql://postgres:postgres@db:5432/team_issue_tracker`. |
+| `SECRET_KEY` | Required when `DEBUG=False`; settings raise `ImproperlyConfigured` without it. With `DEBUG=True` it falls back to `django-insecure-development-key-change-me`. |
+| `DEBUG` | Defaults to `False`. `1`, `true` and `yes` turn it on. `.env.example` and Docker Compose set it to `True` for development. |
+| `DATABASE_URL` | Django's fallback is `postgresql://postgres:postgres@localhost:5432/team_issue_tracker`. Docker Compose's fallback is `postgresql://postgres:postgres@db:5432/team_issue_tracker`. |
 | `DJANGO_ALLOWED_HOSTS` | Defaults to `localhost,127.0.0.1,testserver`. |
 
-Keep `.env` out of version control. `.env` is ignored by `.gitignore`; use `.env.example` as the development template.
+Keep `.env` out of version control. It's in `.gitignore`; copy `.env.example` as the template for development.
 
 ## Running the tests
 
-The test suite uses PostgreSQL. The Django test runner creates and destroys a separate test database.
+The tests need PostgreSQL. Django's test runner creates a separate test database and deletes it afterwards.
 
-Local commands:
+Locally:
 
 ```bash
 python manage.py makemigrations --check --dry-run
@@ -453,7 +421,7 @@ python manage.py test
 python manage.py check --deploy
 ```
 
-Docker commands:
+With Docker:
 
 ```bash
 docker compose exec web python manage.py makemigrations --check --dry-run
@@ -461,31 +429,29 @@ docker compose exec web python manage.py test
 docker compose exec web python manage.py check --deploy
 ```
 
-`check --deploy` reports deployment-security warnings for settings such as HTTPS redirects, HSTS, secure cookies, and the development secret-key configuration. Those warnings are expected for this development setup.
+`check --deploy` lists deployment security warnings: HTTPS redirects, HSTS, secure cookies, and the development secret key. You'll see those warnings with this development setup, and they're expected.
 
-### Test inventory
+### What the tests cover
 
-The following inventory is generated from `issues/tests.py`.
+There are 32 tests in `issues/tests.py`, in five groups:
 
-| Test class | Test methods |
-| --- | --- |
-| `IssueTrackerAPITests` | `test_register_and_login`; `test_organization_creation_adds_owner_membership`; `test_member_can_view_project`; `test_member_cannot_modify_project`; `test_task_creation_with_initial_comment`; `test_task_creator_can_close_task`; `test_unrelated_member_cannot_close_task`; `test_assignee_can_close_task`; `test_tasks_can_be_filtered`; `test_tasks_are_paginated_and_orderable` |
-| `PermissionAPITests` | `test_member_cannot_create_project`; `test_member_cannot_patch_organization`; `test_admin_can_patch_organization`; `test_admin_cannot_delete_organization`; `test_owner_can_delete_organization_and_projects_are_gone`; `test_member_cannot_delete_another_users_comment`; `test_comment_author_can_delete_own_comment`; `test_admin_can_delete_anyones_comment`; `test_admin_can_create_update_delete_projects`; `test_project_organization_change_is_rejected` |
-| `AuthenticationAndIsolationAPITests` | `test_jwt_end_to_end_workflow`; `test_token_refresh_returns_new_access_token`; `test_request_without_token_returns_401`; `test_request_with_garbage_token_returns_401`; `test_cross_organization_objects_are_isolated`; `test_cross_organization_task_and_comment_writes_are_rejected` |
-| `ValidationAndPaginationAPITests` | `test_assignee_outside_organization_rejected_on_create_and_update`; `test_member_assignee_and_null_assignee_are_accepted`; `test_tasks_filter_by_assignee`; `test_tasks_default_page_size_is_ten`; `test_tasks_page_size_is_capped_at_one_hundred` |
-| `SettingsTests` | `test_debug_false_without_secret_key_raises_improperly_configured` |
+- **Basic API behaviour (10):** register and log in, the owner membership on a new organization, members viewing but not changing projects, creating a task with an initial comment, who can close a task (creator and assignee yes, an unrelated member no), filtering, and pagination with ordering.
+- **Permissions (10):** members can't create projects or patch organizations, admins can patch organizations and manage projects but can't delete an organization, an owner can delete one and its projects go with it, who can delete which comments, and a project can't be moved to another organization.
+- **Authentication and isolation (6):** the full JWT workflow, token refresh, `401` with no token or a garbage token, and objects and writes across organizations being rejected.
+- **Validation and pagination (5):** assignees outside the organization are rejected on create and update, member and null assignees are accepted, filtering by assignee, the default page size of 10, and the cap of 100.
+- **Settings (1):** `DEBUG=False` without a `SECRET_KEY` raises `ImproperlyConfigured`.
 
 ## Known limitations
 
-- There is no API endpoint for managing members or roles; Django admin is required.
-- `/api/projects/{id}/tasks/` is not paginated.
-- The Docker setup uses Django's development server.
-- Registration is open.
-- There is no rate limiting.
-- Assignee and role changes are not audited.
-- Tests run against PostgreSQL only.
-- The project does not include an API schema or interactive Swagger/ReDoc endpoint.
+- There's no API for managing members or roles. You need the Django admin for that.
+- Anyone can register.
+- There's no rate limiting.
+- `/api/projects/{id}/tasks/` isn't paginated.
+- The Docker setup runs Django's development server.
+- Changes to assignees and roles aren't logged.
+- The tests only run against PostgreSQL.
+- There's no API schema and no Swagger or ReDoc page.
 
 ## License
 
-This project is distributed under the license in [LICENSE](LICENSE).
+See [LICENSE](LICENSE).
