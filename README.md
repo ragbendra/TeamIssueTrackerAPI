@@ -1,5 +1,7 @@
 # Team Issue Tracker API
 
+[![CI](https://github.com/ragbendra/TeamIssueTrackerAPI/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ragbendra/TeamIssueTrackerAPI/actions/workflows/ci.yml)
+
 Team Issue Tracker API is a Django REST Framework application for managing organizations, projects, tasks, and comments. Data access is organization-scoped: users can see and modify resources only when their membership and role allow it.
 
 ## At a glance
